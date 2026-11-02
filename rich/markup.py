@@ -48,6 +48,7 @@ _EscapeSubMethod = Callable[[_ReSubCallable, str], str]  # Sub method of a compi
 def escape(
     markup: str,
     _escape: _EscapeSubMethod = re.compile(r"(\\*)(\[[a-z#/@][^[]*?])").sub,
+    _escape_bracket: _EscapeSubMethod = re.compile(r"(\\*)\[(?![a-z#/@])").sub,
 ) -> str:
     """Escapes text so that it won't be interpreted as markup.
 
@@ -61,9 +62,25 @@ def escape(
     def escape_backslashes(match: Match[str]) -> str:
         """Called by re.sub replace matches."""
         backslashes, text = match.groups()
-        return f"{backslashes}{backslashes}\\{text}"
+        n = len(backslashes)
+        is_tag = bool(re.match(r"\[[a-z#/@]", text))
+        if is_tag:
+            return "\\" * (2 * n + 1) + text
+        return "\\" * (n + 1) + text if n else text
+
+    def escape_bare_bracket(match: Match[str]) -> str:
+        """Keep a literal backslash before a non-tag bracket.
+
+        render() runs ``plain_text.replace("\\[", "[")`` on every non-tag bracket,
+        which would otherwise delete a backslash that the author intended to be
+        literal (e.g. ``\\[0-9]``). The negative lookahead restricts this to
+        brackets that are not markup tags, so already-escaped tags are untouched.
+        """
+        n = len(match.group(1))
+        return "\\" * (n + 1) + "[" if n else "["
 
     markup = _escape(escape_backslashes, markup)
+    markup = _escape_bracket(escape_bare_bracket, markup)
     if markup.endswith("\\") and not markup.endswith("\\\\"):
         return markup + "\\"
 

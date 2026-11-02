@@ -34,7 +34,7 @@ def test_escape():
 
     # Not tags (escape not required)
     assert escape("[5]") == "[5]"
-    assert escape("\\[5]") == "\\[5]"
+    assert escape("\\[5]") == "\\\\[5]"
 
     # Test @ escape
     assert escape("[@foo]") == "\\[@foo]"
@@ -42,6 +42,22 @@ def test_escape():
 
     # https://github.com/Textualize/rich/issues/2187
     assert escape("[nil, [nil]]") == r"[nil, \[nil]]"
+
+
+def test_escape_preserves_backslash_before_non_tag_bracket():
+    # https://github.com/Textualize/rich/issues/4242
+    # escape() dropped a literal backslash that preceded a bracket which is not a
+    # markup tag (e.g. regex patterns). The escaped markup must round-trip.
+    from rich.text import Text
+
+    for original in (r"\[0-9]", r"pattern: \[0-9]+", r"C:\[Users]", r"\\\[0-9]"):
+        escaped = escape(original)
+        assert Text.from_markup(escaped).plain == original
+
+    # Non-tag brackets without a leading backslash are left untouched.
+    assert escape("[5]") == "[5]"
+    # Tags are still escaped so they render as literal text.
+    assert Text.from_markup(escape("[bold]")).plain == "[bold]"
 
 
 def test_escape_backslash_end():
